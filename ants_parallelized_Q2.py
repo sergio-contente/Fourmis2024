@@ -21,25 +21,25 @@ class Colony:
         pos_init : Initial positions of ants (anthill position)
         max_life : Maximum life that ants can reach
     """
-    def __init__(self, nb_ants, pos_init, max_life):
+    def __init__(self, start_nb, end_nb, pos_init, max_life):
         # Each ant has is own unique random seed
-        self.seeds = np.arange(1, nb_ants+1, dtype=np.int64)
+        self.seeds = np.arange(start_nb, end_nb, dtype=np.int64)
         # State of each ant : loaded or unloaded
-        self.is_loaded = np.zeros(nb_ants, dtype=np.int8)
+        self.is_loaded = np.zeros(end_nb-start_nb, dtype=np.int8)
         # Compute the maximal life amount for each ant :
         #   Updating the random seed :
         self.seeds[:] = np.mod(16807*self.seeds[:], 2147483647)
         # Amount of life for each ant = 75% à 100% of maximal ants life
-        self.max_life = max_life * np.ones(nb_ants, dtype=np.int32)
+        self.max_life = max_life * np.ones(end_nb-start_nb, dtype=np.int32)
         self.max_life -= np.int32(max_life*(self.seeds/2147483647.))//4
         # Ages of ants : zero at beginning
-        self.age = np.zeros(nb_ants, dtype=np.int64)
+        self.age = np.zeros(end_nb-start_nb, dtype=np.int64)
         # History of the path taken by each ant. The position at the ant's age represents its current position.
-        self.historic_path = np.zeros((nb_ants, max_life+1, 2), dtype=np.int16)
+        self.historic_path = np.zeros((end_nb-start_nb, max_life+1, 2), dtype=np.int16)
         self.historic_path[:, 0, 0] = pos_init[0]
         self.historic_path[:, 0, 1] = pos_init[1]
         # Direction in which the ant is currently facing (depends on the direction it came from).
-        self.directions = d.DIR_NONE*np.ones(nb_ants, dtype=np.int8)
+        self.directions = d.DIR_NONE*np.ones(end_nb-start_nb, dtype=np.int8)
         self.sprites = []
         img = pg.image.load("ants.png").convert_alpha()
         for i in range(0, 32, 8):
@@ -212,6 +212,8 @@ class Colony:
     def display(self, screen):
         [screen.blit(self.sprites[self.directions[i]], (8*self.historic_path[i, self.age[i], 1], 8*self.historic_path[i, self.age[i], 0])) for i in range(self.directions.shape[0])]
 
+    def ants_decomposition(self, Nloc):
+        for i in range():
 
 if __name__ == "__main__":
     import sys
@@ -220,11 +222,9 @@ if __name__ == "__main__":
 
     comm = MPI.COMM_WORLD
     rank = comm.Get_rank()
-    nbp = comm.Get_size()
+    nbp = comm.Get_size() 
 
-    if nbp != 2:
-        raise Exception("Wrong number of processes")
-        
+
 
     pg.init()
     size_laby = 25, 25 #labritinto
@@ -239,11 +239,16 @@ if __name__ == "__main__":
         max_life = int(sys.argv[3])
     pos_food = size_laby[0]-1, size_laby[1]-1
     pos_nest = 0, 0
-    
+
+    rest = nb_ants % nbp
+    Nloc = nb_ants//nbp + (1 if rest < rank else 0)
+    block_start = rank*Nloc
+    block_end = rank+1*Nloc
+
     alpha = 0.9
     beta  = 0.99
 
-    ants = Colony(nb_ants, pos_nest, max_life)
+    ants = Colony(block_start, block_end, pos_nest, max_life)
     pherom = pheromone.Pheromon(size_laby, pos_food, alpha, beta)
 
     if len(sys.argv) > 4:
@@ -263,11 +268,7 @@ if __name__ == "__main__":
 
             mazeImg = a_maze.display()
 
-            Status = MPI.Status()
-            ants_attributes, pherom = comm.recv(source=1, status=Status)
-
-            # req = comm.irecv(source=1)
-            # ants_attributes, pherom = req.wait()
+            comm.Gatherv()
 
             # Updating ants
             ants.seeds = ants_attributes[0]
