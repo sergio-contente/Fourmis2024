@@ -87,10 +87,10 @@ class Colony:
 
         # Calculating possible exits for each ant in the maze:
         old_pos_ants = self.historic_path[range(0, self.seeds.shape[0]), self.age[:], :]
-        has_north_exit = np.bitwise_and(the_maze.maze[old_pos_ants[:, 0], old_pos_ants[:, 1]], maze.NORTH) > 0
-        has_east_exit = np.bitwise_and(the_maze.maze[old_pos_ants[:, 0], old_pos_ants[:, 1]], maze.EAST) > 0
-        has_south_exit = np.bitwise_and(the_maze.maze[old_pos_ants[:, 0], old_pos_ants[:, 1]], maze.SOUTH) > 0
-        has_west_exit = np.bitwise_and(the_maze.maze[old_pos_ants[:, 0], old_pos_ants[:, 1]], maze.WEST) > 0
+        has_north_exit = np.bitwise_and(the_maze[old_pos_ants[:, 0], old_pos_ants[:, 1]], maze.NORTH) > 0
+        has_east_exit = np.bitwise_and(the_maze[old_pos_ants[:, 0], old_pos_ants[:, 1]], maze.EAST) > 0
+        has_south_exit = np.bitwise_and(the_maze[old_pos_ants[:, 0], old_pos_ants[:, 1]], maze.SOUTH) > 0
+        has_west_exit = np.bitwise_and(the_maze[old_pos_ants[:, 0], old_pos_ants[:, 1]], maze.WEST) > 0
 
         # Reading neighboring pheromones:
         north_pos = np.copy(old_pos_ants)
@@ -199,10 +199,10 @@ class Colony:
             self.explore(unloaded_ants, the_maze, pos_food, pos_nest, pheromones)
 
         old_pos_ants = self.historic_path[range(0, self.seeds.shape[0]), self.age[:], :]
-        has_north_exit = np.bitwise_and(the_maze.maze[old_pos_ants[:, 0], old_pos_ants[:, 1]], maze.NORTH) > 0
-        has_east_exit = np.bitwise_and(the_maze.maze[old_pos_ants[:, 0], old_pos_ants[:, 1]], maze.EAST) > 0
-        has_south_exit = np.bitwise_and(the_maze.maze[old_pos_ants[:, 0], old_pos_ants[:, 1]], maze.SOUTH) > 0
-        has_west_exit = np.bitwise_and(the_maze.maze[old_pos_ants[:, 0], old_pos_ants[:, 1]], maze.WEST) > 0
+        has_north_exit = np.bitwise_and(the_maze[old_pos_ants[:, 0], old_pos_ants[:, 1]], maze.NORTH) > 0
+        has_east_exit = np.bitwise_and(the_maze[old_pos_ants[:, 0], old_pos_ants[:, 1]], maze.EAST) > 0
+        has_south_exit = np.bitwise_and(the_maze[old_pos_ants[:, 0], old_pos_ants[:, 1]], maze.SOUTH) > 0
+        has_west_exit = np.bitwise_and(the_maze[old_pos_ants[:, 0], old_pos_ants[:, 1]], maze.WEST) > 0
         # Marking pheromones:
         old_pheromones = pheromones.pheromon.copy()
         [pheromones.mark(self.historic_path[i, self.age[i], :],
@@ -239,7 +239,6 @@ if __name__ == "__main__":
         max_life = int(sys.argv[3])
     pos_food = size_laby[0]-1, size_laby[1]-1
     pos_nest = 0, 0
-    a_maze = maze.Maze(size_laby, 12345)
     ants = Colony(nb_ants, pos_nest, max_life)
     alpha = 0.9
     beta  = 0.99
@@ -254,12 +253,14 @@ if __name__ == "__main__":
     
     while True:
         if rank == 0:
+            a_maze = maze.Maze(size_laby, 12345)
+            comm.send(a_maze.maze, dest=1)
+
             mazeImg = a_maze.display()
 
             Status = MPI.Status()
-            ants, pherom = comm.recv(source=1, status=Status)
+            ants_attributes, pherom = comm.recv(source=1, status=Status)
             
-
             ## Tirar foto da janela do pygame
             snapshop_taken = False
             for event in pg.event.get():
@@ -269,6 +270,12 @@ if __name__ == "__main__":
             deb = time.time()
             pherom.display(screen)
             screen.blit(mazeImg, (0, 0))
+
+            ants.seeds = ants_attributes[0]
+            ants.is_loaded = ants_attributes[1]
+            ants.age = ants_attributes[2]
+            ants.historic_path = ants_attributes[3]
+            ants.directions = ants_attributes[4]
             ants.display(screen)
             pg.display.update()
 
@@ -278,15 +285,15 @@ if __name__ == "__main__":
 
             end = time.time()
 
+            print(f"FPS : {1./(end-deb):6.2f}, nourriture : {food_counter:7d}", end='\r')
+
         if rank == 1:
+            Status = MPI.Status()
+            a_maze = comm.recv(source=0, status=Status)
             unloaded_ants = np.array(range(nb_ants))
             pherom = pheromone.Pheromon(size_laby, pos_food, alpha, beta)
-                        
             food_counter = ants.advance(a_maze, pos_food, pos_nest, pherom, food_counter)
             pherom.do_evaporation(pos_food)
             
-            comm.send((ants, pherom), dest=0)
+            comm.send(([ants.seeds, ants.is_loaded, ants.age, ants.historic_path, ants.directions], pherom), dest=0)
             
-
-            # pg.time.wait(500)
-            print(f"FPS : {1./(end-deb):6.2f}, nourriture : {food_counter:7d}", end='\r')
