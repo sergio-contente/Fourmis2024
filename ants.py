@@ -218,11 +218,11 @@ if __name__ == "__main__":
     import time
     pg.init()
     size_laby = 50, 50 #labritinto
-    if len(sys.argv) > 2:
+    if len(sys.argv) > 2:           # pega o tamanho do lab pelo terminal
         size_laby = int(sys.argv[1]),int(sys.argv[2])
 
-    resolution = size_laby[1]*8, size_laby[0]*8
-    screen = pg.display.set_mode(resolution)
+    resolution = size_laby[1]*8, size_laby[0]*8     #resolução pra criar a janela
+    screen = pg.display.set_mode(resolution)        #cria a janela
     nb_ants = size_laby[0]*size_laby[1]//4
     max_life = 1000
     if len(sys.argv) > 3:
