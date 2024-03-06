@@ -217,7 +217,7 @@ if __name__ == "__main__":
     import sys
     import time
     pg.init()
-    size_laby = 50, 50 #labritinto
+    size_laby = 25, 25 #labritinto
     if len(sys.argv) > 2:           # pega o tamanho do lab pelo terminal
         size_laby = int(sys.argv[1]),int(sys.argv[2])
 

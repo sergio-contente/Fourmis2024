@@ -257,13 +257,17 @@ if __name__ == "__main__":
     
     while True:
         if rank == 0:
+            deb = time.time()
             a_maze = maze.Maze(size_laby, 12345)
             comm.send(a_maze.maze, dest=1)
 
             mazeImg = a_maze.display()
 
-            Status = MPI.Status()
-            ants_attributes, pherom = comm.recv(source=1, status=Status)
+            # Status = MPI.Status()
+            # ants_attributes, pherom = comm.recv(source=1, status=Status)
+
+            req = comm.irecv(source=1)
+            ants_attributes, pherom = req.wait()
 
             # Updating ants
             ants.seeds = ants_attributes[0]
@@ -280,13 +284,11 @@ if __name__ == "__main__":
                     pg.quit()
                     exit(0)
 
-
-
             if food_counter == 1 and not snapshop_taken:
                 pg.image.save(screen, "MyFirstFood.png")
                 snapshop_taken = True   
             
-            deb = time.time()
+            
             pherom.display(screen)
             screen.blit(mazeImg, (0, 0))
             ants.display(screen)
@@ -303,5 +305,6 @@ if __name__ == "__main__":
             food_counter = ants.advance(a_maze, pos_food, pos_nest, pherom, food_counter)
             pherom.do_evaporation(pos_food)
             
-            comm.send(([ants.seeds, ants.is_loaded, ants.age, ants.historic_path, ants.directions], pherom), dest=0)
-            
+            # comm.send(([ants.seeds, ants.is_loaded, ants.age, ants.historic_path, ants.directions], pherom), dest=0)
+            req = comm.isend(([ants.seeds, ants.is_loaded, ants.age, ants.historic_path, ants.directions], pherom), dest=0)
+            req.wait()
