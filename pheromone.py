@@ -16,6 +16,7 @@ class Pheromon:
         self.pheromon[the_food_position[0]+1, the_food_position[1]+1] = 1.
 
     def do_evaporation(self, the_pos_food):
+        print("entrei evaporation \n")
         self.pheromon = self.beta * self.pheromon
         self.pheromon[the_pos_food[0]+1, the_pos_food[1]+1] = 1.
 

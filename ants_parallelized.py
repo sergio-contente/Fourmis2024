@@ -227,7 +227,7 @@ if __name__ == "__main__":
         
 
     pg.init()
-    size_laby = 50, 50 #labritinto
+    size_laby = 25, 25 #labritinto
     if len(sys.argv) > 2:           # pega o tamanho do lab pelo terminal
         size_laby = int(sys.argv[1]),int(sys.argv[2])
 
@@ -239,9 +239,13 @@ if __name__ == "__main__":
         max_life = int(sys.argv[3])
     pos_food = size_laby[0]-1, size_laby[1]-1
     pos_nest = 0, 0
-    ants = Colony(nb_ants, pos_nest, max_life)
+    
     alpha = 0.9
     beta  = 0.99
+
+    ants = Colony(nb_ants, pos_nest, max_life)
+    pherom = pheromone.Pheromon(size_laby, pos_food, alpha, beta)
+
     if len(sys.argv) > 4:
         alpha = float(sys.argv[4])
     if len(sys.argv) > 5:
@@ -260,6 +264,14 @@ if __name__ == "__main__":
 
             Status = MPI.Status()
             ants_attributes, pherom = comm.recv(source=1, status=Status)
+
+            # Updating ants
+            ants.seeds = ants_attributes[0]
+            ants.is_loaded = ants_attributes[1]
+            ants.age = ants_attributes[2]
+            ants.historic_path = ants_attributes[3]
+            ants.directions = ants_attributes[4]
+            
             
             ## Tirar foto da janela do pygame
             snapshop_taken = False
@@ -267,21 +279,18 @@ if __name__ == "__main__":
                 if event.type == pg.QUIT:
                     pg.quit()
                     exit(0)
-            deb = time.time()
-            pherom.display(screen)
-            screen.blit(mazeImg, (0, 0))
 
-            ants.seeds = ants_attributes[0]
-            ants.is_loaded = ants_attributes[1]
-            ants.age = ants_attributes[2]
-            ants.historic_path = ants_attributes[3]
-            ants.directions = ants_attributes[4]
-            ants.display(screen)
-            pg.display.update()
+
 
             if food_counter == 1 and not snapshop_taken:
                 pg.image.save(screen, "MyFirstFood.png")
                 snapshop_taken = True   
+            
+            deb = time.time()
+            pherom.display(screen)
+            screen.blit(mazeImg, (0, 0))
+            ants.display(screen)
+            pg.display.update()
 
             end = time.time()
 
@@ -291,7 +300,6 @@ if __name__ == "__main__":
             Status = MPI.Status()
             a_maze = comm.recv(source=0, status=Status)
             unloaded_ants = np.array(range(nb_ants))
-            pherom = pheromone.Pheromon(size_laby, pos_food, alpha, beta)
             food_counter = ants.advance(a_maze, pos_food, pos_nest, pherom, food_counter)
             pherom.do_evaporation(pos_food)
             
