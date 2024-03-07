@@ -249,24 +249,36 @@ if __name__ == "__main__":
         beta = float(sys.argv[5])
     food_counter = 0
 
-    #IDEIA: recuperar o tamanho de todos os blocos para um único gather só para fazer o tratamento com o Gatherv depois
-    # Calcular Nloc para todos os processos, incluindo o processo 0 com Nloc = 0
-    rest = nb_ants % (nbp - 1)
-    Nloc = (nb_ants // (nbp - 1)) + (1 if rank <= rest and rank != 0 else 0)
+    comm = MPI.COMM_WORLD
+    rank = comm.Get_rank()
+    size = comm.Get_size()
 
-    # Preparar recv_count em todos os processos
-    recv_count = np.empty(nbp, dtype=np.int32)
-    comm.Allgather(np.array([Nloc], dtype=np.int32), recv_count)
+    color = 0 if rank == 0 else 1
 
-    # Calcular deslocamentos com base em recv_count
-    displacements = np.insert(np.cumsum(recv_count[:-1]), 0, 0)
+    comm_calc = comm.Split(color)
+    rank_calc = comm_calc.Get_rank()
+    size_calc = comm_calc.Get_size()
 
-    # Agora, usando Nloc e displacements calculados, podemos definir block_start e block_end corretamente
-    block_start = displacements[rank]
-    block_end = block_start + Nloc
+
+    if color != 0:
+        #IDEIA: recuperar o tamanho de todos os blocos para um único gather só para fazer o tratamento com o Gatherv depois
+        # Calcular Nloc para todos os processos, incluindo o processo 0 com Nloc = 0
+        rest = nb_ants % (size_calc - 1)
+        Nloc = (nb_ants // (size_calc - 1)) + (1 if rank_calc <= rest and rank_calc != 0 else 0)
+
+        # Preparar recv_count em todos os processos
+        recv_count = np.empty(size_calc, dtype=np.int32)
+        comm_calc.Allgather(np.array([Nloc], dtype=np.int32), recv_count)
+
+        # Calcular deslocamentos com base em recv_count
+        displacements = np.insert(np.cumsum(recv_count[:-1]), 0, 0)
+
+        # Agora, usando Nloc e displacements calculados, podemos definir block_start e block_end corretamente
+        block_start = displacements[rank_calc]
+        block_end = block_start + Nloc
 
     # O processo 0 não calcula ants_local
-    if rank != 0:
+    if color != 0:
         ants_local = Colony(block_start, block_end, pos_nest, max_life)
         food_counter_local = np.array(1, dtype=np.int64)
         # Coloque aqui mais lógica que somente os processos não-raiz deveriam executar
@@ -293,16 +305,16 @@ if __name__ == "__main__":
         food_counter_glob = None
 
     while True:
-        if rank != 0:
+        if color != 0:
             food_counter_local = np.array(ants_local.advance(a_maze, pos_food, pos_nest, pherom, food_counter_local), dtype=np.int64)
             pherom.do_evaporation(pos_food)
 
-        comm.Reduce([food_counter_local, MPI.UINT32_T], [food_counter_glob, MPI.INT64_T], op=MPI.SUM, root=0)
-        comm.Gatherv(ants_local.seeds, [seeds_glob, recv_count, displacements, MPI.UINT64_T], root=0)
-        comm.Gatherv(ants_local.is_loaded, [is_loaded_glob, recv_count, displacements, MPI.UINT64_T], root=0)
-        comm.Gatherv(ants_local.age, [age_glob, recv_count, displacements, MPI.UINT64_T], root=0)
-        comm.Gatherv(ants_local.historic_path, [historic_path_glob, recv_count, displacements, MPI.UINT64_T], root=0)
-        comm.Gatherv(ants_local.directions, [directions_glob, recv_count, displacements, MPI.UINT64_T], root=0)
+        # comm.Reduce([food_counter_local, MPI.UINT32_T], [food_counter_glob, MPI.INT64_T], op=MPI.SUM, root=0)
+        # comm.Gatherv(ants_local.seeds, [seeds_glob, recv_count, displacements, MPI.UINT64_T], root=0)
+        # comm.Gatherv(ants_local.is_loaded, [is_loaded_glob, recv_count, displacements, MPI.UINT64_T], root=0)
+        # comm.Gatherv(ants_local.age, [age_glob, recv_count, displacements, MPI.UINT64_T], root=0)
+        # comm.Gatherv(ants_local.historic_path, [historic_path_glob, recv_count, displacements, MPI.UINT64_T], root=0)
+        # comm.Gatherv(ants_local.directions, [directions_glob, recv_count, displacements, MPI.UINT64_T], root=0)
 
         if rank==0:
             # Updating ants
@@ -312,6 +324,7 @@ if __name__ == "__main__":
             ants_global.historic_path = historic_path_glob
             ants_global.directions = directions_glob
             
+            print(ants_global.directions)
             mazeImg = a_maze.display()        
             pherom.display(screen)
             screen.blit(mazeImg, (0, 0))
