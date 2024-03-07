@@ -282,6 +282,7 @@ if __name__ == "__main__":
 
         food_counter_glob = np.empty(nb_ants, dtype=np.int64)
         food_counter_local = None
+        ants_local = None
     else:
         seeds_glob = None
         is_loaded_glob = None
