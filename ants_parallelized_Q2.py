@@ -272,10 +272,12 @@ if __name__ == "__main__":
 
         # Calcular deslocamentos com base em recv_count
         displacements = np.insert(np.cumsum(recv_count[:-1]), 0, 0)
-
+        # print(f'recv_counts {recv_count}, displacements {displacements}')
         # Agora, usando Nloc e displacements calculados, podemos definir block_start e block_end corretamente
         block_start = displacements[rank_calc]
         block_end = block_start + Nloc
+        if rank == 1:
+            comm.send((recv_count, displacements), dest=0)
 
     # O processo 0 não calcula ants_local
     if color != 0:
@@ -286,6 +288,10 @@ if __name__ == "__main__":
     #dt = [np.int64, np.int8, np.int64, np.int16, np.int8]
     #ants_attributes = [np.empty(nb_ants, dtype=dt[i]) for i in range(len(dt))]
     if rank == 0:
+        [recv_count, displacements] = comm.recv(source=1)
+        recv_count_glob = np.insert(recv_count, 0, 0)
+        displacements_glob = np.insert(displacements, 0,0)
+        # print(f'recv_counts global {recv_count_glob}, displacements global {displacements_glob}')
         seeds_glob = np.empty(nb_ants, dtype=np.int64)
         is_loaded_glob = np.empty(nb_ants, dtype=np.int8)
         age_glob = np.empty(nb_ants, dtype=np.int64)
@@ -296,6 +302,8 @@ if __name__ == "__main__":
         food_counter_local = None
         ants_local = None
     else:
+        recv_count_glob = np.insert(recv_count, 0, 0)
+        displacements_glob = np.insert(displacements, 0,0)
         seeds_glob = None
         is_loaded_glob = None
         age_glob = None
@@ -310,11 +318,11 @@ if __name__ == "__main__":
             pherom.do_evaporation(pos_food)
 
         # comm.Reduce([food_counter_local, MPI.UINT32_T], [food_counter_glob, MPI.INT64_T], op=MPI.SUM, root=0)
-        # comm.Gatherv(ants_local.seeds, [seeds_glob, recv_count, displacements, MPI.UINT64_T], root=0)
-        # comm.Gatherv(ants_local.is_loaded, [is_loaded_glob, recv_count, displacements, MPI.UINT64_T], root=0)
-        # comm.Gatherv(ants_local.age, [age_glob, recv_count, displacements, MPI.UINT64_T], root=0)
-        # comm.Gatherv(ants_local.historic_path, [historic_path_glob, recv_count, displacements, MPI.UINT64_T], root=0)
-        # comm.Gatherv(ants_local.directions, [directions_glob, recv_count, displacements, MPI.UINT64_T], root=0)
+        comm.Gatherv(ants_local.seeds, [seeds_glob, recv_count_glob, displacements_glob, MPI.UINT64_T], root=0)
+        # comm.Gatherv(ants_local.is_loaded, [is_loaded_glob, recv_count_glob, displacements_glob, MPI.UINT64_T], root=0)
+        # comm.Gatherv(ants_local.age, [age_glob, recv_count_glob, displacements_glob, MPI.UINT64_T], root=0)
+        # comm.Gatherv(ants_local.historic_path, [historic_path_glob, recv_count_glob, displacements_glob, MPI.UINT64_T], root=0)
+        # comm.Gatherv(ants_local.directions, [directions_glob, recv_count_glob, displacements_glob, MPI.UINT64_T], root=0)
 
         if rank==0:
             # Updating ants
