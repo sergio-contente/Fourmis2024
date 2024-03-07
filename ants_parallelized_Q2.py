@@ -241,6 +241,12 @@ if __name__ == "__main__":
     block_start = rank*Nloc
     block_end = rank+1*Nloc
 
+    recv_count = np.array([None for _ in range(nbp)])
+    # recv_count[rank] = Nloc
+    comm.Allgather([np.array(Nloc, dtype=np.uint8), MPI.UINT8_T], [recv_count, MPI.UINT8_T])
+    displacements = np.empty(nbp, dtype=np.uint32)
+    displacements = np.cumsum(recv_count) - recv_count 
+
     alpha = 0.9
     beta  = 0.99
 
@@ -308,8 +314,9 @@ if __name__ == "__main__":
             pherom.do_evaporation(pos_food)
             
             
-            attributs_tosend = [ants_global.seeds, ants_global.is_loaded, ants_global.age, ants_global.historic_path, ants_global.directions, pherom]
+            attributs_tosend = [ants_global.seeds, ants_global.is_loaded, ants_global.age, ants_global.historic_path, ants_global.directions]
     
         types_list = [MPI.INT64_T, MPI.INT8_T, MPI.INT64_T, MPI.INT16_T, MPI.INT8_T]
-        for elem in attributs_tosend:    
-            comm.Gatherv(attributs_tosend, None, root=0)
+        # comm.Gather(pherom.pheromon, pherom.pheromon, root=0)
+        for idx, elem in enumerate(attributs_tosend):    
+            comm.Gatherv(attributs_tosend, [ants_attributes, recv_count, displacements, types_list[idx]], root=0)
