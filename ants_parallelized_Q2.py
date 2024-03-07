@@ -311,7 +311,7 @@ if __name__ == "__main__":
 
     while True:
         if color != 0:
-            food_counter_local = np.array(ants_local.advance(a_maze, pos_food, pos_nest, pherom, food_counter_local), dtype=np.int64)
+            food_counter_local = np.array(ants_local.advance(a_maze, pos_food, pos_nest, pherom_local, food_counter_local), dtype=np.int64)
             pherom_local.do_evaporation(pos_food)
 
             comm_calc.Reduce([food_counter_local, MPI.INT64_T], [food_counter_colored, MPI.INT64_T], op=MPI.SUM, root=0)
@@ -353,9 +353,9 @@ if __name__ == "__main__":
                 pg.image.save(screen, "MyFirstFood.png")
                 snapshop_taken = True   
                 
-            screen.blit(mazeImg, (0, 0))
             # print(ants_global.directions.shape[0])
             pherom.display(screen)
+            screen.blit(mazeImg, (0, 0))
             ants_global.display(screen)
             pg.display.update()
 
