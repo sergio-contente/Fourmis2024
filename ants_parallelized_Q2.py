@@ -23,7 +23,7 @@ class Colony:
     """
     def __init__(self, start_nb, end_nb, pos_init, max_life):
         # Each ant has is own unique random seed
-        self.seeds = np.arange(start_nb, end_nb, dtype=np.int64)
+        self.seeds = np.arange(start_nb+1, end_nb+1, dtype=np.int64)
         # State of each ant : loaded or unloaded
         self.is_loaded = np.zeros(end_nb-start_nb, dtype=np.int8)
         # Compute the maximal life amount for each ant :
@@ -210,6 +210,7 @@ class Colony:
         return food_counter
 
     def display(self, screen):
+        print(len(self.sprites), len(self.historic_path))
         [screen.blit(self.sprites[self.directions[i]], (8*self.historic_path[i, self.age[i], 1], 8*self.historic_path[i, self.age[i], 0])) for i in range(self.directions.shape[0])]
 
 
@@ -296,6 +297,7 @@ if __name__ == "__main__":
             
             pherom.display(screen)
             screen.blit(mazeImg, (0, 0))
+            print(ants_global.directions.shape[0])
             ants_global.display(screen)
             pg.display.update()
 
@@ -313,8 +315,7 @@ if __name__ == "__main__":
             food_counter = ants_local.advance(a_maze, pos_food, pos_nest, pherom, food_counter)
             pherom.do_evaporation(pos_food)
             
-            
-            attributs_tosend = [ants_global.seeds, ants_global.is_loaded, ants_global.age, ants_global.historic_path, ants_global.directions]
+            attributs_tosend = [ants_local.seeds, ants_local.is_loaded, ants_local.age, ants_local.historic_path, ants_local.directions]
     
         types_list = [MPI.INT64_T, MPI.INT8_T, MPI.INT64_T, MPI.INT16_T, MPI.INT8_T]
         # comm.Gather(pherom.pheromon, pherom.pheromon, root=0)
