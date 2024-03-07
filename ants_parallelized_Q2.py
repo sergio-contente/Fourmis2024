@@ -87,10 +87,10 @@ class Colony:
 
         # Calculating possible exits for each ant in the maze:
         old_pos_ants = self.historic_path[range(0, self.seeds.shape[0]), self.age[:], :]
-        has_north_exit = np.bitwise_and(the_maze[old_pos_ants[:, 0], old_pos_ants[:, 1]], maze.NORTH) > 0
-        has_east_exit = np.bitwise_and(the_maze[old_pos_ants[:, 0], old_pos_ants[:, 1]], maze.EAST) > 0
-        has_south_exit = np.bitwise_and(the_maze[old_pos_ants[:, 0], old_pos_ants[:, 1]], maze.SOUTH) > 0
-        has_west_exit = np.bitwise_and(the_maze[old_pos_ants[:, 0], old_pos_ants[:, 1]], maze.WEST) > 0
+        has_north_exit = np.bitwise_and(the_maze.maze[old_pos_ants[:, 0], old_pos_ants[:, 1]], maze.NORTH) > 0
+        has_east_exit = np.bitwise_and(the_maze.maze[old_pos_ants[:, 0], old_pos_ants[:, 1]], maze.EAST) > 0
+        has_south_exit = np.bitwise_and(the_maze.maze[old_pos_ants[:, 0], old_pos_ants[:, 1]], maze.SOUTH) > 0
+        has_west_exit = np.bitwise_and(the_maze.maze[old_pos_ants[:, 0], old_pos_ants[:, 1]], maze.WEST) > 0
 
         # Reading neighboring pheromones:
         north_pos = np.copy(old_pos_ants)
@@ -199,10 +199,10 @@ class Colony:
             self.explore(unloaded_ants, the_maze, pos_food, pos_nest, pheromones)
 
         old_pos_ants = self.historic_path[range(0, self.seeds.shape[0]), self.age[:], :]
-        has_north_exit = np.bitwise_and(the_maze[old_pos_ants[:, 0], old_pos_ants[:, 1]], maze.NORTH) > 0
-        has_east_exit = np.bitwise_and(the_maze[old_pos_ants[:, 0], old_pos_ants[:, 1]], maze.EAST) > 0
-        has_south_exit = np.bitwise_and(the_maze[old_pos_ants[:, 0], old_pos_ants[:, 1]], maze.SOUTH) > 0
-        has_west_exit = np.bitwise_and(the_maze[old_pos_ants[:, 0], old_pos_ants[:, 1]], maze.WEST) > 0
+        has_north_exit = np.bitwise_and(the_maze.maze[old_pos_ants[:, 0], old_pos_ants[:, 1]], maze.NORTH) > 0
+        has_east_exit = np.bitwise_and(the_maze.maze[old_pos_ants[:, 0], old_pos_ants[:, 1]], maze.EAST) > 0
+        has_south_exit = np.bitwise_and(the_maze.maze[old_pos_ants[:, 0], old_pos_ants[:, 1]], maze.SOUTH) > 0
+        has_west_exit = np.bitwise_and(the_maze.maze[old_pos_ants[:, 0], old_pos_ants[:, 1]], maze.WEST) > 0
         # Marking pheromones:
         old_pheromones = pheromones.pheromon.copy()
         [pheromones.mark(self.historic_path[i, self.age[i], :],
@@ -239,11 +239,11 @@ if __name__ == "__main__":
     rest = nb_ants % nbp
     Nloc = nb_ants//nbp + (1 if rest < rank else 0)
     block_start = rank*Nloc
-    block_end = rank+1*Nloc
+    block_end = (rank+1)*Nloc
 
-    recv_count = np.array([None for _ in range(nbp)])
+    recv_count = np.empty(nbp, dtype=np.int32)
     # recv_count[rank] = Nloc
-    comm.Allgather([np.array(Nloc, dtype=np.uint8), MPI.UINT8_T], [recv_count, MPI.UINT8_T])
+    comm.Allgather([np.array(Nloc, dtype=np.uint32), MPI.UINT32_T], [recv_count, MPI.UINT32_T])
     displacements = np.empty(nbp, dtype=np.uint32)
     displacements = np.cumsum(recv_count) - recv_count 
 
@@ -259,9 +259,9 @@ if __name__ == "__main__":
     if len(sys.argv) > 5:
         beta = float(sys.argv[5])
 
-    dt = np.dtype('np.int64, np.int8, np.int64, np.int16, np.int8')
+    dt = [np.int64, np.int8, np.int64, np.int16, np.int8]
     food_counter = 0
-    ants_attributes = np.empty(5, dtype=dt)
+    ants_attributes = [np.empty(nb_ants, dtype=dt[i]) for i in range(len(dt))]
     
     while True:
         
@@ -310,7 +310,7 @@ if __name__ == "__main__":
             # a_maze = comm.recv(source=0, status=Status)
             ants_local = Colony(block_start, block_end, pos_nest, max_life)
             unloaded_ants = np.array(range(nb_ants))
-            food_counter = ants_global.advance(a_maze, pos_food, pos_nest, pherom, food_counter)
+            food_counter = ants_local.advance(a_maze, pos_food, pos_nest, pherom, food_counter)
             pherom.do_evaporation(pos_food)
             
             
@@ -319,4 +319,4 @@ if __name__ == "__main__":
         types_list = [MPI.INT64_T, MPI.INT8_T, MPI.INT64_T, MPI.INT16_T, MPI.INT8_T]
         # comm.Gather(pherom.pheromon, pherom.pheromon, root=0)
         for idx, elem in enumerate(attributs_tosend):    
-            comm.Gatherv(attributs_tosend, [ants_attributes, recv_count, displacements, types_list[idx]], root=0)
+            comm.Gatherv(attributs_tosend[idx], [ants_attributes[idx], recv_count, displacements, types_list[idx]], root=0)

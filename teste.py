@@ -1,7 +1,5 @@
+import numpy as np
+Nloc = 5
 
-
-
-
-recv_count = [None for _ in range(5)]
-recv_count[rank] = Nloc
-print(recv_count)
+a = np.array(Nloc, dtype=np.uint8)
+print(a, type(a))
