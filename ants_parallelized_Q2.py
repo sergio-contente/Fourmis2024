@@ -236,18 +236,6 @@ if __name__ == "__main__":
         max_life = int(sys.argv[3])
     pos_food = size_laby[0]-1, size_laby[1]-1 #Todo processo recebe o pos_food
     pos_nest = 0, 0 # Todo processo recebe o pos-nest
-
-    rest = nb_ants % nbp
-    Nloc = nb_ants//nbp + (1 if rest < rank else 0)
-    block_start = rank*Nloc
-    block_end = (rank+1)*Nloc
-
-    recv_count = np.empty(nbp, dtype=np.int32)
-    # recv_count[rank] = Nloc
-    comm.Allgather([np.array(Nloc, dtype=np.uint32), MPI.UINT32_T], [recv_count, MPI.UINT32_T])
-    displacements = np.empty(nbp, dtype=np.uint32)
-    displacements = np.cumsum(recv_count) - recv_count 
-
     alpha = 0.9
     beta  = 0.99
 
@@ -259,22 +247,70 @@ if __name__ == "__main__":
         alpha = float(sys.argv[4])
     if len(sys.argv) > 5:
         beta = float(sys.argv[5])
+    food_counter = 0
+
+    #IDEIA: recuperar o tamanho de todos os blocos para um único gather só para fazer o tratamento com o Gatherv depois
+    # Calcular Nloc para todos os processos, incluindo o processo 0 com Nloc = 0
+    rest = nb_ants % (nbp - 1)
+    Nloc = (nb_ants // (nbp - 1)) + (1 if rank <= rest and rank != 0 else 0)
+
+    # Preparar recv_count em todos os processos
+    recv_count = np.empty(nbp, dtype=np.int32)
+    comm.Allgather(np.array([Nloc], dtype=np.int32), recv_count)
+
+    # Calcular deslocamentos com base em recv_count
+    displacements = np.insert(np.cumsum(recv_count[:-1]), 0, 0)
+
+    # Agora, usando Nloc e displacements calculados, podemos definir block_start e block_end corretamente
+    block_start = displacements[rank]
+    block_end = block_start + Nloc
+
+    # O processo 0 não calcula ants_local
+    if rank != 0:
+        ants_local = Colony(block_start, block_end, pos_nest, max_life)
+        food_counter_local = np.array(1, dtype=np.int64)
+        # Coloque aqui mais lógica que somente os processos não-raiz deveriam executar
 
     #dt = [np.int64, np.int8, np.int64, np.int16, np.int8]
-    food_counter = 0
     #ants_attributes = [np.empty(nb_ants, dtype=dt[i]) for i in range(len(dt))]
-    seeds_glob = np.empty(nb_ants, dtype=np.int64)
-    is_loaded_glob = np.empty(nb_ants, dtype=np.int8)
-    age_glob = np.empty(nb_ants, dtype=np.int64)
-    historic_path_glob = np.empty(nb_ants, dtype=np.int64)
-    directions_glob = np.empty(nb_ants, dtype=np.int16)
+    if rank == 0:
+        seeds_glob = np.empty(nb_ants, dtype=np.int64)
+        is_loaded_glob = np.empty(nb_ants, dtype=np.int8)
+        age_glob = np.empty(nb_ants, dtype=np.int64)
+        historic_path_glob = np.empty(nb_ants, dtype=np.int64)
+        directions_glob = np.empty(nb_ants, dtype=np.int16)
 
-    food_counter = np.empty(nb_ants, dtype=np.int8)
-    
+        food_counter_glob = np.empty(nb_ants, dtype=np.int64)
+        food_counter_local = None
+    else:
+        seeds_glob = None
+        is_loaded_glob = None
+        age_glob = None
+        historic_path_glob = None
+        directions_glob = None
+
+        food_counter_glob = None
+
     while True:
-        
-        if rank == 0:
-            deb = time.time()
+        if rank != 0:
+            food_counter_local = np.array(ants_local.advance(a_maze, pos_food, pos_nest, pherom, food_counter_local), dtype=np.int64)
+            pherom.do_evaporation(pos_food)
+
+        comm.Reduce([food_counter_local, MPI.UINT32_T], [food_counter_glob, MPI.INT64_T], op=MPI.SUM, root=0)
+        comm.Gatherv(ants_local.seeds, [seeds_glob, recv_count, displacements, MPI.UINT64_T], root=0)
+        comm.Gatherv(ants_local.is_loaded, [is_loaded_glob, recv_count, displacements, MPI.UINT64_T], root=0)
+        comm.Gatherv(ants_local.age, [age_glob, recv_count, displacements, MPI.UINT64_T], root=0)
+        comm.Gatherv(ants_local.historic_path, [historic_path_glob, recv_count, displacements, MPI.UINT64_T], root=0)
+        comm.Gatherv(ants_local.directions, [directions_glob, recv_count, displacements, MPI.UINT64_T], root=0)
+
+        if rank==0:
+            # Updating ants
+            ants_global.seeds = seeds_glob
+            ants_global.is_loaded = is_loaded_glob
+            ants_global.age = age_glob
+            ants_global.historic_path = historic_path_glob
+            ants_global.directions = directions_glob
+            
             mazeImg = a_maze.display()        
             pherom.display(screen)
             screen.blit(mazeImg, (0, 0))
@@ -282,13 +318,6 @@ if __name__ == "__main__":
             ants_global.display(screen)
             pg.display.update()
             attributs_tosend = None
-
-            food_counter_loc = np.empty(1, np.uint32)
-            
-            # maze_send = a_maze.maze
-            # #Communicate maze
-            # comm.Bcast(maze_send, root=0)
-
             
             ## Tirar foto da janela do pygame
             snapshop_taken = False
@@ -300,40 +329,82 @@ if __name__ == "__main__":
             if food_counter[0] == 1 and not snapshop_taken:
                 pg.image.save(screen, "MyFirstFood.png")
                 snapshop_taken = True   
-            
-            
+        
+        
 
             end = time.time()
 
-            print(f"FPS : {1./(end-deb):6.2f}, nourriture : {food_counter[0]:7d}", end='\r')
+            #print(f"FPS : {1./(end-deb):6.2f}, nourriture : {food_counter[0]:7d}", end='\r')
 
-        else:
-            Status = MPI.Status()
-            ants_global = None
-            # maze_send = np.empty(size_laby, dtype=np.int8)
-            # a_maze = comm.recv(source=0, status=Status)
-            ants_local = Colony(block_start, block_end, pos_nest, max_life)
-            unloaded_ants = np.array(range(nb_ants))
-            food_counter_loc = np.array(ants_local.advance(a_maze, pos_food, pos_nest, pherom, food_counter), dtype=np.uint32)
-            pherom.do_evaporation(pos_food)
             
-            attributs_tosend = [ants_local.seeds, ants_local.is_loaded, ants_local.age, ants_local.historic_path, ants_local.directions]
+    # if rank == 0:
+    #     deb = time.time()
+    #       seeds_glob = np.empty(nb_ants, dtype=np.int64)
+    #     is_loaded_glob = np.empty(nb_ants, dtype=np.int8)
+    #     age_glob = np.empty(nb_ants, dtype=np.int64)
+    #     historic_path_glob = np.empty(nb_ants, dtype=np.int64)
+    #     directions_glob = np.empty(nb_ants, dtype=np.int16)
+
+    #     food_counter_loc = np.empty(1, np.uint32)
+    # else:
+        
+    #     # maze_send = a_maze.maze
+    #     # #Communicate maze
+    #     # comm.Bcast(maze_send, root=0)
     
-        #types_list = [MPI.INT64_T, MPI.INT8_T, MPI.INT64_T, MPI.INT16_T, MPI.INT8_T]
-        # comm.Gather(pherom.pheromon, pherom.pheromon, root=0)
-        comm.Reduce([food_counter_loc, MPI.UINT32_T], [food_counter, MPI.UINT32_T], op=MPI.SUM, root=0)
-        comm.Gatherv(attributs_tosend[0], [seeds_glob, recv_count, displacements, MPI.UINT64_T], root=0)
-        comm.Gatherv(attributs_tosend[1], [is_loaded_glob, recv_count, displacements, MPI.UINT64_T], root=0)
-        comm.Gatherv(attributs_tosend[2], [age_glob, recv_count, displacements, MPI.UINT64_T], root=0)
-        comm.Gatherv(attributs_tosend[3], [historic_path_glob, recv_count, displacements, MPI.UINT64_T], root=0)
-        comm.Gatherv(attributs_tosend[4], [directions_glob, recv_count, displacements, MPI.UINT64_T], root=0)
-
-
-        if rank==0:
-              # Updating ants
-            ants_global.seeds = seeds_glob
-            ants_global.is_loaded = is_loaded_glob
-            ants_global.age = age_glob
-            ants_global.historic_path = historic_path_glob
-            ants_global.directions = directions_glob
+    # while True:
+    #     if rank != 0:
+    #         Status = MPI.Status()
+    #         #ants_global = None
+    #         # maze_send = np.empty(size_laby, dtype=np.int8)
+    #         # a_maze = comm.recv(source=0, status=Status)
+    #         ants_local = Colony(block_start, block_end, pos_nest, max_life)
+    #         unloaded_ants = np.array(range(nb_ants))
+    #         food_counter_loc = np.array(ants_local.advance(a_maze, pos_food, pos_nest, pherom, food_counter), dtype=np.uint32)
+    #         pherom.do_evaporation(pos_food)
             
+    #         attributs_tosend = [ants_local.seeds, ants_local.is_loaded, ants_local.age, ants_local.historic_path, ants_local.directions]
+    
+    #     #types_list = [MPI.INT64_T, MPI.INT8_T, MPI.INT64_T, MPI.INT16_T, MPI.INT8_T]
+    #     # comm.Gather(pherom.pheromon, pherom.pheromon, root=0)
+    #     comm.Reduce([food_counter_loc, MPI.UINT32_T], [food_counter, MPI.UINT32_T], op=MPI.SUM, root=0)
+    #     comm.Gatherv(attributs_tosend[0], [seeds_glob, recv_count, displacements, MPI.UINT64_T], root=0)
+    #     comm.Gatherv(attributs_tosend[1], [is_loaded_glob, recv_count, displacements, MPI.UINT64_T], root=0)
+    #     comm.Gatherv(attributs_tosend[2], [age_glob, recv_count, displacements, MPI.UINT64_T], root=0)
+    #     comm.Gatherv(attributs_tosend[3], [historic_path_glob, recv_count, displacements, MPI.UINT64_T], root=0)
+    #     comm.Gatherv(attributs_tosend[4], [directions_glob, recv_count, displacements, MPI.UINT64_T], root=0)
+
+
+    #     if rank==0:
+    #           # Updating ants
+    #         ants_global.seeds = seeds_glob
+    #         ants_global.is_loaded = is_loaded_glob
+    #         ants_global.age = age_glob
+    #         ants_global.historic_path = historic_path_glob
+    #         ants_global.directions = directions_glob
+            
+    #         mazeImg = a_maze.display()        
+    #         pherom.display(screen)
+    #         screen.blit(mazeImg, (0, 0))
+    #         print(ants_global.directions.shape[0])
+    #         ants_global.display(screen)
+    #         pg.display.update()
+    #         attributs_tosend = None
+            
+    #         ## Tirar foto da janela do pygame
+    #         snapshop_taken = False
+    #         for event in pg.event.get():
+    #             if event.type == pg.QUIT:
+    #                 pg.quit()
+    #                 exit(0)
+
+    #         if food_counter[0] == 1 and not snapshop_taken:
+    #             pg.image.save(screen, "MyFirstFood.png")
+    #             snapshop_taken = True   
+            
+            
+
+    #         end = time.time()
+
+    #         print(f"FPS : {1./(end-deb):6.2f}, nourriture : {food_counter[0]:7d}", end='\r')
+
