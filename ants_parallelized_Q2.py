@@ -318,7 +318,7 @@ if __name__ == "__main__":
             pherom.do_evaporation(pos_food)
 
         # comm.Reduce([food_counter_local, MPI.UINT32_T], [food_counter_glob, MPI.INT64_T], op=MPI.SUM, root=0)
-        comm.Gatherv(ants_local.seeds, [seeds_glob, recv_count_glob, displacements_glob, MPI.UINT64_T], root=0)
+        comm.Gatherv(ants_local.seeds, [seeds_glob, recv_count, displacements, MPI.UINT64_T], root=1)
         # comm.Gatherv(ants_local.is_loaded, [is_loaded_glob, recv_count_glob, displacements_glob, MPI.UINT64_T], root=0)
         # comm.Gatherv(ants_local.age, [age_glob, recv_count_glob, displacements_glob, MPI.UINT64_T], root=0)
         # comm.Gatherv(ants_local.historic_path, [historic_path_glob, recv_count_glob, displacements_glob, MPI.UINT64_T], root=0)
