@@ -231,11 +231,11 @@ if __name__ == "__main__":
     resolution = size_laby[1]*8, size_laby[0]*8     #resolução pra criar a janela
     screen = pg.display.set_mode(resolution)        #cria a janela
     nb_ants = size_laby[0]*size_laby[1]//4
-    max_life = 1000
+    max_life = 1000 # Todo processo tem o max_life
     if len(sys.argv) > 3:
         max_life = int(sys.argv[3])
-    pos_food = size_laby[0]-1, size_laby[1]-1
-    pos_nest = 0, 0
+    pos_food = size_laby[0]-1, size_laby[1]-1 #Todo processo recebe o pos_food
+    pos_nest = 0, 0 # Todo processo recebe o pos-nest
 
     rest = nb_ants % nbp
     Nloc = nb_ants//nbp + (1 if rest < rank else 0)
@@ -253,35 +253,42 @@ if __name__ == "__main__":
 
     ants_global = Colony(0, nb_ants, pos_nest, max_life)
     pherom = pheromone.Pheromon(size_laby, pos_food, alpha, beta)
-    a_maze = maze.Maze(size_laby, 12345)
+    a_maze = maze.Maze(size_laby, 12345) # Todo processo tem o mesmo maze
 
     if len(sys.argv) > 4:
         alpha = float(sys.argv[4])
     if len(sys.argv) > 5:
         beta = float(sys.argv[5])
 
-    dt = [np.int64, np.int8, np.int64, np.int16, np.int8]
+    #dt = [np.int64, np.int8, np.int64, np.int16, np.int8]
     food_counter = 0
-    ants_attributes = [np.empty(nb_ants, dtype=dt[i]) for i in range(len(dt))]
+    #ants_attributes = [np.empty(nb_ants, dtype=dt[i]) for i in range(len(dt))]
+    seeds_glob = np.empty(nb_ants, dtype=np.int64)
+    is_loaded_glob = np.empty(nb_ants, dtype=np.int8)
+    age_glob = np.empty(nb_ants, dtype=np.int64)
+    historic_path_glob = np.empty(nb_ants, dtype=np.int64)
+    directions_glob = np.empty(nb_ants, dtype=np.int16)
+
+    food_counter = np.empty(nb_ants, dtype=np.int8)
     
     while True:
         
         if rank == 0:
             deb = time.time()
+            mazeImg = a_maze.display()        
+            pherom.display(screen)
+            screen.blit(mazeImg, (0, 0))
+            print(ants_global.directions.shape[0])
+            ants_global.display(screen)
+            pg.display.update()
             attributs_tosend = None
+
+            food_counter_loc = np.empty(1, np.uint32)
             
             # maze_send = a_maze.maze
             # #Communicate maze
             # comm.Bcast(maze_send, root=0)
-            mazeImg = a_maze.display()        
 
-            # Updating ants
-            ants_global.seeds = ants_attributes[0]
-            ants_global.is_loaded = ants_attributes[1]
-            ants_global.age = ants_attributes[2]
-            ants_global.historic_path = ants_attributes[3]
-            ants_global.directions = ants_attributes[4]
-            
             
             ## Tirar foto da janela do pygame
             snapshop_taken = False
@@ -290,20 +297,15 @@ if __name__ == "__main__":
                     pg.quit()
                     exit(0)
 
-            if food_counter == 1 and not snapshop_taken:
+            if food_counter[0] == 1 and not snapshop_taken:
                 pg.image.save(screen, "MyFirstFood.png")
                 snapshop_taken = True   
             
             
-            pherom.display(screen)
-            screen.blit(mazeImg, (0, 0))
-            print(ants_global.directions.shape[0])
-            ants_global.display(screen)
-            pg.display.update()
 
             end = time.time()
 
-            print(f"FPS : {1./(end-deb):6.2f}, nourriture : {food_counter:7d}", end='\r')
+            print(f"FPS : {1./(end-deb):6.2f}, nourriture : {food_counter[0]:7d}", end='\r')
 
         else:
             Status = MPI.Status()
@@ -312,12 +314,26 @@ if __name__ == "__main__":
             # a_maze = comm.recv(source=0, status=Status)
             ants_local = Colony(block_start, block_end, pos_nest, max_life)
             unloaded_ants = np.array(range(nb_ants))
-            food_counter = ants_local.advance(a_maze, pos_food, pos_nest, pherom, food_counter)
+            food_counter_loc = np.array(ants_local.advance(a_maze, pos_food, pos_nest, pherom, food_counter), dtype=np.uint32)
             pherom.do_evaporation(pos_food)
             
             attributs_tosend = [ants_local.seeds, ants_local.is_loaded, ants_local.age, ants_local.historic_path, ants_local.directions]
     
-        types_list = [MPI.INT64_T, MPI.INT8_T, MPI.INT64_T, MPI.INT16_T, MPI.INT8_T]
+        #types_list = [MPI.INT64_T, MPI.INT8_T, MPI.INT64_T, MPI.INT16_T, MPI.INT8_T]
         # comm.Gather(pherom.pheromon, pherom.pheromon, root=0)
-        for idx, elem in enumerate(attributs_tosend):    
-            comm.Gatherv(attributs_tosend[idx], [ants_attributes[idx], recv_count, displacements, types_list[idx]], root=0)
+        comm.Reduce([food_counter_loc, MPI.UINT32_T], [food_counter, MPI.UINT32_T], op=MPI.SUM, root=0)
+        comm.Gatherv(attributs_tosend[0], [seeds_glob, recv_count, displacements, MPI.UINT64_T], root=0)
+        comm.Gatherv(attributs_tosend[1], [is_loaded_glob, recv_count, displacements, MPI.UINT64_T], root=0)
+        comm.Gatherv(attributs_tosend[2], [age_glob, recv_count, displacements, MPI.UINT64_T], root=0)
+        comm.Gatherv(attributs_tosend[3], [historic_path_glob, recv_count, displacements, MPI.UINT64_T], root=0)
+        comm.Gatherv(attributs_tosend[4], [directions_glob, recv_count, displacements, MPI.UINT64_T], root=0)
+
+
+        if rank==0:
+              # Updating ants
+            ants_global.seeds = seeds_glob
+            ants_global.is_loaded = is_loaded_glob
+            ants_global.age = age_glob
+            ants_global.historic_path = historic_path_glob
+            ants_global.directions = directions_glob
+            
