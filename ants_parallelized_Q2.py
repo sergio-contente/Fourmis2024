@@ -212,8 +212,6 @@ class Colony:
     def display(self, screen):
         [screen.blit(self.sprites[self.directions[i]], (8*self.historic_path[i, self.age[i], 1], 8*self.historic_path[i, self.age[i], 0])) for i in range(self.directions.shape[0])]
 
-    def ants_decomposition(self, Nloc):
-        for i in range():
 
 if __name__ == "__main__":
     import sys
@@ -223,8 +221,6 @@ if __name__ == "__main__":
     comm = MPI.COMM_WORLD
     rank = comm.Get_rank()
     nbp = comm.Get_size() 
-
-
 
     pg.init()
     size_laby = 25, 25 #labritinto
@@ -248,34 +244,36 @@ if __name__ == "__main__":
     alpha = 0.9
     beta  = 0.99
 
-    ants = Colony(block_start, block_end, pos_nest, max_life)
+    ants_global = Colony(0, nb_ants, pos_nest, max_life)
     pherom = pheromone.Pheromon(size_laby, pos_food, alpha, beta)
+    a_maze = maze.Maze(size_laby, 12345)
 
     if len(sys.argv) > 4:
         alpha = float(sys.argv[4])
     if len(sys.argv) > 5:
         beta = float(sys.argv[5])
 
-
+    dt = np.dtype('np.int64, np.int8, np.int64, np.int16, np.int8')
     food_counter = 0
-
+    ants_attributes = np.empty(5, dtype=dt)
     
     while True:
+        
         if rank == 0:
             deb = time.time()
-            a_maze = maze.Maze(size_laby, 12345)
-            comm.send(a_maze.maze, dest=1)
-
-            mazeImg = a_maze.display()
-
-            comm.Gatherv()
+            attributs_tosend = None
+            
+            # maze_send = a_maze.maze
+            # #Communicate maze
+            # comm.Bcast(maze_send, root=0)
+            mazeImg = a_maze.display()        
 
             # Updating ants
-            ants.seeds = ants_attributes[0]
-            ants.is_loaded = ants_attributes[1]
-            ants.age = ants_attributes[2]
-            ants.historic_path = ants_attributes[3]
-            ants.directions = ants_attributes[4]
+            ants_global.seeds = ants_attributes[0]
+            ants_global.is_loaded = ants_attributes[1]
+            ants_global.age = ants_attributes[2]
+            ants_global.historic_path = ants_attributes[3]
+            ants_global.directions = ants_attributes[4]
             
             
             ## Tirar foto da janela do pygame
@@ -292,21 +290,26 @@ if __name__ == "__main__":
             
             pherom.display(screen)
             screen.blit(mazeImg, (0, 0))
-            ants.display(screen)
+            ants_global.display(screen)
             pg.display.update()
 
             end = time.time()
 
             print(f"FPS : {1./(end-deb):6.2f}, nourriture : {food_counter:7d}", end='\r')
 
-        if rank == 1:
+        else:
             Status = MPI.Status()
-            a_maze = comm.recv(source=0, status=Status)
+            ants_global = None
+            # maze_send = np.empty(size_laby, dtype=np.int8)
+            # a_maze = comm.recv(source=0, status=Status)
+            ants_local = Colony(block_start, block_end, pos_nest, max_life)
             unloaded_ants = np.array(range(nb_ants))
-            food_counter = ants.advance(a_maze, pos_food, pos_nest, pherom, food_counter)
+            food_counter = ants_global.advance(a_maze, pos_food, pos_nest, pherom, food_counter)
             pherom.do_evaporation(pos_food)
             
-            comm.send(([ants.seeds, ants.is_loaded, ants.age, ants.historic_path, ants.directions], pherom), dest=0)
-            # req = comm.isend(([ants.seeds, ants.is_loaded, ants.age, ants.historic_path, ants.directions], pherom), dest=0)
-            # req.wait()
-                    # Problema de vazamento de memorio tentando fazer com msg nao blockante
+            
+            attributs_tosend = [ants_global.seeds, ants_global.is_loaded, ants_global.age, ants_global.historic_path, ants_global.directions, pherom]
+    
+        types_list = [MPI.INT64_T, MPI.INT8_T, MPI.INT64_T, MPI.INT16_T, MPI.INT8_T]
+        for elem in attributs_tosend:    
+            comm.Gatherv(attributs_tosend, None, root=0)
