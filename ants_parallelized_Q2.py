@@ -231,7 +231,7 @@ if __name__ == "__main__":
 
     # print(f"rank_calc {rank_calc}")
     # print(f"rank {rank}")
-    size_laby = 75, 75 #labritinto
+    size_laby = 25, 25 #labritinto
     if len(sys.argv) > 2:           # pega o tamanho do lab pelo terminal
         size_laby = int(sys.argv[1]),int(sys.argv[2])
 
@@ -272,7 +272,7 @@ if __name__ == "__main__":
 
         # Calcular deslocamentos com base em recv_count
         displacements = np.insert(np.cumsum(recv_count[:-1]), 0, 0)
-        # print(f'recv_counts {recv_count}, displacements {displacements}')
+
         # Agora, usando Nloc e displacements calculados, podemos definir block_start e block_end corretamente
         
         historic_recvcounts = recv_count.copy() * (max_life+1) * 2
@@ -280,31 +280,23 @@ if __name__ == "__main__":
 
         block_start = displacements[rank_calc]
         block_end = block_start + Nloc
-        
-        # if rank == 1:
-        #     comm.send((recv_count, displacements), dest=0)
 
         # O processo 0 não calcula ants_local
     
         ants_local = Colony(block_start, block_end, pos_nest, max_life)
         food_counter_local = np.array(1, dtype=np.int64)
+        pherom_local = pheromone.Pheromon(size_laby, pos_food, alpha, beta)
         # Coloque aqui mais lógica que somente os processos não-raiz deveriam executar
 
-    #dt = [np.int64, np.int8, np.int64, np.int16, np.int8]
-    #ants_attributes = [np.empty(nb_ants, dtype=dt[i]) for i in range(len(dt))]
-    # food_counter_local = np.empty([0], np.int64)
         if rank_calc == 0:
-            # [recv_count, displacements] = comm.recv(source=1)
-            # recv_count_glob = np.insert(recv_count, 0, 0)
-            # displacements_glob = np.insert(displacements, 0,0)
-            # print(f'recv_counts global {recv_count_glob}, displacements global {displacements_glob}')
-            ants_colored = Colony(0, nb_ants, pos_nest, max_life)
             seeds_colored = np.empty(nb_ants, dtype=np.int64)
             is_loaded_colored = np.empty(nb_ants, dtype=np.int8)
             age_colored = np.empty(nb_ants, dtype=np.int64)
             historic_path_colored = np.empty((nb_ants, max_life+1, 2), dtype=np.int16)
             directions_colored = np.empty(nb_ants, dtype=np.int8)
             food_counter_colored = np.empty(1, np.int64)
+            pheromon_colored = np.empty((size_laby[0]+2, size_laby[1]+2), dtype=np.double)
+            
         else:
             # recv_count_colored = np.insert(recv_count, 0, 0)
             # displacements_colored = np.insert(displacements, 0,0)
@@ -314,25 +306,27 @@ if __name__ == "__main__":
             historic_path_colored = None
             directions_colored = None
             food_counter_colored = None
+            pheromon_colored = None
 
 
     while True:
         if color != 0:
             food_counter_local = np.array(ants_local.advance(a_maze, pos_food, pos_nest, pherom, food_counter_local), dtype=np.int64)
-            pherom.do_evaporation(pos_food)
+            pherom_local.do_evaporation(pos_food)
 
             comm_calc.Reduce([food_counter_local, MPI.INT64_T], [food_counter_colored, MPI.INT64_T], op=MPI.SUM, root=0)
+            comm_calc.Reduce([pherom_local.pheromon, MPI.DOUBLE], [pheromon_colored, MPI.DOUBLE], op=MPI.MAX, root=0)
             comm_calc.Gatherv(ants_local.seeds, [seeds_colored, recv_count, displacements, MPI.INT64_T], root=0)
             comm_calc.Gatherv(ants_local.is_loaded, [is_loaded_colored, recv_count, displacements, MPI.INT8_T], root=0)
             comm_calc.Gatherv(ants_local.age, [age_colored, recv_count, displacements, MPI.INT64_T], root=0)
             comm_calc.Gatherv(ants_local.historic_path, [historic_path_colored, historic_recvcounts, historic_displacements, MPI.INT16_T], root=0)
             comm_calc.Gatherv(ants_local.directions, [directions_colored, recv_count, displacements, MPI.INT8_T], root=0)
 
-            comm.send([seeds_colored, is_loaded_colored, age_colored, historic_path_colored, directions_colored, food_counter_colored], dest=0)
+            comm.send([seeds_colored, is_loaded_colored, age_colored, historic_path_colored, directions_colored, food_counter_colored, pheromon_colored], dest=0)
         
         else:
             mazeImg = a_maze.display()        
-            pherom.display(screen)
+            
         
             # ants_attributes, pherom = comm.recv(source=1)
             ants_attributes = comm.recv(source=1)
@@ -346,6 +340,7 @@ if __name__ == "__main__":
             ants_global.directions = ants_attributes[4]
             # print(f"direction{ants_attributes[4]}")
             food_counter = ants_attributes[5]
+            pherom.pheromon = ants_attributes[6]
 
                  ## Tirar foto da janela do pygame
             snapshop_taken = False
@@ -360,6 +355,7 @@ if __name__ == "__main__":
                 
             screen.blit(mazeImg, (0, 0))
             # print(ants_global.directions.shape[0])
+            pherom.display(screen)
             ants_global.display(screen)
             pg.display.update()
 
