@@ -6,6 +6,7 @@ import maze
 import pheromone
 import direction as d
 import pygame as pg
+import os
 
 UNLOADED, LOADED = False, True
 
@@ -242,9 +243,10 @@ if __name__ == "__main__":
     mazeImg = a_maze.display()
     food_counter = 0
     
+    temps_total = 0
 
     snapshop_taken = False
-    while True:
+    for cycle in range(0, 7000):
         for event in pg.event.get():
             if event.type == pg.QUIT:
                 pg.quit()
@@ -257,10 +259,19 @@ if __name__ == "__main__":
         pg.display.update()
                 
         food_counter = ants.advance(a_maze, pos_food, pos_nest, pherom, food_counter)
+
         pherom.do_evaporation(pos_food)
         end = time.time()
+        temps_total += end - deb
         if food_counter == 1 and not snapshop_taken:
             pg.image.save(screen, "MyFirstFood.png")
             snapshop_taken = True
-        # pg.time.wait(500)
-        print(f"FPS : {1./(end-deb):6.2f}, nourriture : {food_counter:7d}", end='\r')
+
+        print(f"FPS : {1./(end-deb):6.2f}, nourriture : {food_counter:7d}")
+        
+    print(f"Temps total: {temps_total}")
+    output_str = f"Temps total: {temps_total}"
+    # Open the file in append mode ('a') to add to the file without overwriting it
+    with open('results_serial.txt', 'w') as file:
+        file.write(output_str + '\n')  # Write the output string to the file, adding a newline character at the end
+

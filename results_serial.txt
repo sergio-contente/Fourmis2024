@@ -1,0 +1,3 @@
+Temps display:19.08677315711975
+Temps calcules: 11969477134125.748
+Temps total: 43.42931509017944

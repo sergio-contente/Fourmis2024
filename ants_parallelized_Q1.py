@@ -227,12 +227,16 @@ if __name__ == "__main__":
         
 
     pg.init()
-    size_laby = 25, 25 #labritinto
-    if len(sys.argv) > 2:           # pega o tamanho do lab pelo terminal
+    size_laby = 25, 25 
+    if len(sys.argv) > 2:           
         size_laby = int(sys.argv[1]),int(sys.argv[2])
 
-    resolution = size_laby[1]*8, size_laby[0]*8     #resolução pra criar a janela
-    screen = pg.display.set_mode(resolution)        #cria a janela
+    resolution = size_laby[1]*8, size_laby[0]*8     
+    if rank==0:
+        temps_total = 0
+        screen = pg.display.set_mode(resolution)
+    else:
+        screen = pg.display.set_mode(resolution, flags=pg.HIDDEN)      
     nb_ants = size_laby[0]*size_laby[1]//4
     max_life = 1000
     if len(sys.argv) > 3:
@@ -254,20 +258,14 @@ if __name__ == "__main__":
 
     food_counter = 0
 
+    a_maze = maze.Maze(size_laby, 12345)
     
-    while True:
+    for cycle in range(0, 7000):
         if rank == 0:
             deb = time.time()
-            a_maze = maze.Maze(size_laby, 12345)
-            comm.send(a_maze.maze, dest=1)
-
             mazeImg = a_maze.display()
-
             Status = MPI.Status()
-            ants_attributes, pherom = comm.recv(source=1, status=Status)
-
-            # req = comm.irecv(source=1)
-            # ants_attributes, pherom = req.wait()
+            ants_attributes, pherom, food_counter = comm.recv(source=1, status=Status)
 
             # Updating ants
             ants.seeds = ants_attributes[0]
@@ -275,9 +273,7 @@ if __name__ == "__main__":
             ants.age = ants_attributes[2]
             ants.historic_path = ants_attributes[3]
             ants.directions = ants_attributes[4]
-            
-            
-            ## Tirar foto da janela do pygame
+                        
             snapshop_taken = False
             for event in pg.event.get():
                 if event.type == pg.QUIT:
@@ -288,24 +284,25 @@ if __name__ == "__main__":
                 pg.image.save(screen, "MyFirstFood.png")
                 snapshop_taken = True   
             
-            
             pherom.display(screen)
             screen.blit(mazeImg, (0, 0))
             ants.display(screen)
             pg.display.update()
-
             end = time.time()
+            temps_total += end - deb
 
-            print(f"FPS : {1./(end-deb):6.2f}, nourriture : {food_counter:7d}", end='\r')
+            print(f"FPS : {1./(end-deb):6.2f}, nourriture : {food_counter:7d}")        
 
         if rank == 1:
-            Status = MPI.Status()
-            a_maze = comm.recv(source=0, status=Status)
-            unloaded_ants = np.array(range(nb_ants))
-            food_counter = ants.advance(a_maze, pos_food, pos_nest, pherom, food_counter)
+            food_counter = ants.advance(a_maze.maze, pos_food, pos_nest, pherom, food_counter)
             pherom.do_evaporation(pos_food)
             
-            comm.send(([ants.seeds, ants.is_loaded, ants.age, ants.historic_path, ants.directions], pherom), dest=0)
-            # req = comm.isend(([ants.seeds, ants.is_loaded, ants.age, ants.historic_path, ants.directions], pherom), dest=0)
-            # req.wait()
-                    # Problema de vazamento de memorio tentando fazer com msg nao blockante
+            comm.send(([ants.seeds, ants.is_loaded, ants.age, ants.historic_path, \
+                        ants.directions], pherom, food_counter), dest=0)
+    if rank==0:
+        print(f"Temps total: {temps_total}")
+        output_str = f"Temps total: {temps_total}"
+        # Open the file in append mode ('a') to add to the file without overwriting it
+        with open('results_parallelized_Q1.txt', 'w') as file:
+            file.write(output_str + '\n')  # Write the output string to the file, adding a newline character at the end
+
