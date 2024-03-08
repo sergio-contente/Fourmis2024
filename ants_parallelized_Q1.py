@@ -296,8 +296,8 @@ if __name__ == "__main__":
             print(f"FPS : {1./(end-deb):6.2f}, nourriture : {food_counter:7d}", end='\r')
 
         if rank == 1:
-            unloaded_ants = np.array(range(nb_ants))
             food_counter = ants.advance(a_maze.maze, pos_food, pos_nest, pherom, food_counter)
             pherom.do_evaporation(pos_food)
             
-            comm.send(([ants.seeds, ants.is_loaded, ants.age, ants.historic_path, ants.directions], pherom, food_counter), dest=0)
+            comm.send(([ants.seeds, ants.is_loaded, ants.age, ants.historic_path, \
+                        ants.directions], pherom, food_counter), dest=0)
