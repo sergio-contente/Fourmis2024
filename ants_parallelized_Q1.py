@@ -227,16 +227,15 @@ if __name__ == "__main__":
         
 
     pg.init()
-    size_laby = 25, 25 #labritinto
-    if len(sys.argv) > 2:           # pega o tamanho do lab pelo terminal
+    size_laby = 25, 25 
+    if len(sys.argv) > 2:           
         size_laby = int(sys.argv[1]),int(sys.argv[2])
 
-    resolution = size_laby[1]*8, size_laby[0]*8     #resolução pra criar a janela
+    resolution = size_laby[1]*8, size_laby[0]*8     
     if rank==0:
         screen = pg.display.set_mode(resolution)
     else:
-        screen = pg.display.set_mode(resolution, flags=pg.HIDDEN)       #cria a janela
-    #screen = pg.display.set_mode(resolution)        #cria a janela
+        screen = pg.display.set_mode(resolution, flags=pg.HIDDEN)      
     nb_ants = size_laby[0]*size_laby[1]//4
     max_life = 1000
     if len(sys.argv) > 3:
@@ -276,7 +275,6 @@ if __name__ == "__main__":
             ants.directions = ants_attributes[4]
             
             
-            ## Tirar foto da janela do pygame
             snapshop_taken = False
             for event in pg.event.get():
                 if event.type == pg.QUIT:
