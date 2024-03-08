@@ -228,30 +228,34 @@ if __name__ == "__main__":
     rank_calc = comm_calc.Get_rank()
     size_calc = comm_calc.Get_size()
 
-    size_laby = 25, 25 
+
+    size_laby = 25, 25
     if len(sys.argv) > 2:
         size_laby = int(sys.argv[1]),int(sys.argv[2])
 
     
     pg.init()
-    resolution = size_laby[1]*8, size_laby[0]*8 
+    resolution = size_laby[1]*8, size_laby[0]*8
     if rank==0:
         screen = pg.display.set_mode(resolution)
     else:
-        screen = pg.display.set_mode(resolution, flags=pg.HIDDEN)     
+        screen = pg.display.set_mode(resolution, flags=pg.HIDDEN)
     
     nb_ants = size_laby[0]*size_laby[1]//4
-    max_life = 1000 
+    max_life = 1000 # Todo processo tem o max_life
     if len(sys.argv) > 3:
         max_life = int(sys.argv[3])
-    pos_food = size_laby[0]-1, size_laby[1]-1 
+    pos_food = size_laby[0]-1, size_laby[1]-1 #Todo processo recebe o pos_food
+    pos_nest = 0, 0 # Todo processo recebe o pos-nest
     alpha = 0.9
     beta  = 0.99
-    pos_nest = 0, 0
 
-    ants_global = Colony(0, nb_ants, pos_nest, max_life)
-    pherom = pheromone.Pheromon(size_laby, pos_food, alpha, beta)
-    a_maze = maze.Maze(size_laby, 12345) 
+    a_maze = maze.Maze(size_laby, 12345) # Todo processo tem o mesmo maze
+
+    if rank == 0:
+        ants_global = Colony(0, nb_ants, pos_nest, max_life)
+        pherom = pheromone.Pheromon(size_laby, pos_food, alpha, beta)
+   
 
     if len(sys.argv) > 4:
         alpha = float(sys.argv[4])
@@ -261,26 +265,28 @@ if __name__ == "__main__":
 
 
     if color != 0:
+        # Calcualitng Nloc for all process involved in calculation
         rest = nb_ants % (size_calc)
         Nloc = (nb_ants // (size_calc)) + (1 if rank_calc <= rest and rank_calc != 0 else 0)
 
+        # Preparing arrays to represent the distribution among processes
         recv_count = np.empty(size_calc, dtype=np.int32)
         comm_calc.Allgather(np.array([Nloc], dtype=np.int32), recv_count)
-
         displacements = np.insert(np.cumsum(recv_count[:-1]), 0, 0)
 
-        
         historic_recvcounts = recv_count.copy() * (max_life+1) * 2
         historic_displacements = displacements.copy() * (max_life+1) * 2
 
+        # Now, we can define start and end indexes for each process
         block_start = displacements[rank_calc]
         block_end = block_start + Nloc
 
-    
+        # Local objects
         ants_local = Colony(block_start, block_end, pos_nest, max_life)
         food_counter_local = np.array(1, dtype=np.int64)
         pherom_local = pheromone.Pheromon(size_laby, pos_food, alpha, beta)
-
+    
+        # Buffers initialization
         if rank_calc == 0:
             seeds_colored = np.empty(nb_ants, dtype=np.int64)
             is_loaded_colored = np.empty(nb_ants, dtype=np.int8)
@@ -300,16 +306,17 @@ if __name__ == "__main__":
             pheromon_colored = None
 
 
-    for cycle in range(0, 7000):
+    while True:
         deb = time.time()
         if color != 0:
+            # Calculation processes
             food_counter_local = np.array(ants_local.advance(a_maze, pos_food, pos_nest, pherom_local, food_counter_local), dtype=np.int64)
             pherom_local.do_evaporation(pos_food)
 
             comm_calc.Reduce([food_counter_local, MPI.INT64_T], [food_counter_colored, MPI.INT64_T], op=MPI.SUM, root=0)
             comm_calc.Reduce([pherom_local.pheromon, MPI.DOUBLE], [pheromon_colored, MPI.DOUBLE], op=MPI.MAX, root=0)
-            comm_calc.Gatherv(ants_local.seeds, [seeds_colored, recv_count, displacements, MPI.INT64_T], root=0)
-            comm_calc.Gatherv(ants_local.is_loaded, [is_loaded_colored, recv_count, displacements, MPI.INT8_T], root=0)
+            # comm_calc.Gatherv(ants_local.seeds, [seeds_colored, recv_count, displacements, MPI.INT64_T], root=0)
+            # comm_calc.Gatherv(ants_local.is_loaded, [is_loaded_colored, recv_count, displacements, MPI.INT8_T], root=0)
             comm_calc.Gatherv(ants_local.age, [age_colored, recv_count, displacements, MPI.INT64_T], root=0)
             comm_calc.Gatherv(ants_local.historic_path, [historic_path_colored, historic_recvcounts, historic_displacements, MPI.INT16_T], root=0)
             comm_calc.Gatherv(ants_local.directions, [directions_colored, recv_count, displacements, MPI.INT8_T], root=0)
@@ -318,11 +325,9 @@ if __name__ == "__main__":
         
         else:
             mazeImg = a_maze.display()        
-            
         
             ants_attributes = comm.recv(source=1)
-
-
+            # Updating ants
             ants_global.seeds = ants_attributes[0]
             ants_global.is_loaded = ants_attributes[1]
             ants_global.age = ants_attributes[2]
@@ -331,6 +336,7 @@ if __name__ == "__main__":
             food_counter = ants_attributes[5]
             pherom.pheromon = ants_attributes[6]
 
+                 ## Print screen pygame window
             snapshop_taken = False
             for event in pg.event.get():
                 if event.type == pg.QUIT:
@@ -340,16 +346,15 @@ if __name__ == "__main__":
             if food_counter == 1 and not snapshop_taken:
                 pg.image.save(screen, "MyFirstFood.png")
                 snapshop_taken = True   
-                
+            
+            # Updating display
             pherom.display(screen)
             screen.blit(mazeImg, (0, 0))
             ants_global.display(screen)
             pg.display.update()
             end = time.time()
 
-            output_str = f"FPS : {1./(end-deb):6.2f}, nourriture : {food_counter[0]:7d}"
-            # Open the file in append mode ('a') to add to the file without overwriting it
-            with open('results_parallelized_Q2.txt', 'a') as file:
-                file.write(output_str + '\n')  # Write the output string to the file, adding a newline character at the end
+            print(f"FPS : {1./(end-deb):6.2f}, nourriture : {food_counter[0]:7d}", end='\r')
+
 
         
