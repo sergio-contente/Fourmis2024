@@ -85,7 +85,6 @@ if __name__  == "__main__":
     resolution = dimensions[1]*8, dimensions[0]*8
     print(f"resolution : {resolution}")
     screen = pg.display.set_mode(resolution)
-
     t1 = time.time()
     maze = Maze(dimensions, 12345)
     t2 = time.time()

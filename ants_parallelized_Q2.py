@@ -238,7 +238,10 @@ if __name__ == "__main__":
     
     pg.init()
     resolution = size_laby[1]*8, size_laby[0]*8     #resolução pra criar a janela
-    screen = pg.display.set_mode(resolution)        #cria a janela
+    if rank==0:
+        screen = pg.display.set_mode(resolution)
+    else:
+        screen = pg.display.set_mode(resolution, flags=pg.HIDDEN)       #cria a janela
     
     nb_ants = size_laby[0]*size_laby[1]//4
     max_life = 1000 # Todo processo tem o max_life
