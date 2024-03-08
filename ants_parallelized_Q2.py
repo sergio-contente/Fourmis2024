@@ -240,6 +240,7 @@ if __name__ == "__main__":
         screen = pg.display.set_mode(resolution)
         temps_display = 0
         temps_calcul= 0
+        temps_total = 0
     else:
         screen = pg.display.set_mode(resolution, flags=pg.HIDDEN)
     
@@ -357,10 +358,11 @@ if __name__ == "__main__":
             pg.display.update()
             temps_display += time.time() - temps_display_start
             end = time.time()
+            temps_total += end - deb
             print(f"FPS : {1./(end-deb):6.2f}, nourriture : {food_counter[0]:7d}")
 
     if rank==0:
-        temps_total = temps_calcul + temps_display
+        #temps_total = temps_calcul + temps_display
         print(f"Temps display:{temps_display}\nTemps calcules: {temps_calcul}\nTemps total: {temps_total}")
         output_str = f"Temps display:{temps_display}\nTemps calcules: {temps_calcul}\nTemps total: {temps_total}"
         # Open the file in append mode ('a') to add to the file without overwriting it

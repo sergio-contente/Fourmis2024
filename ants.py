@@ -247,6 +247,7 @@ if __name__ == "__main__":
     temps_ants = 0
     temps_pheromon = 0
     temps_calcul = 0
+    temps_total = 0
 
     snapshop_taken = False
     for cycle in range(0, 7000):
@@ -271,6 +272,7 @@ if __name__ == "__main__":
         pherom.do_evaporation(pos_food)
         temps_pheromon += temps_pheromon_start
         end = time.time()
+        temps_total += end - deb
         if food_counter == 1 and not snapshop_taken:
             pg.image.save(screen, "MyFirstFood.png")
             snapshop_taken = True
@@ -278,7 +280,7 @@ if __name__ == "__main__":
         print(f"FPS : {1./(end-deb):6.2f}, nourriture : {food_counter:7d}")
         
     temps_calcul = temps_pheromon + temps_ants
-    temps_total = temps_calcul + temps_display
+    #temps_total = temps_calcul + temps_display
     print(f"Temps display:{temps_display}\nTemps calcules: {temps_calcul}\nTemps total: {temps_total}")
     output_str = f"Temps display:{temps_display}\nTemps calcules: {temps_calcul}\nTemps total: {temps_total}"
     # Open the file in append mode ('a') to add to the file without overwriting it
