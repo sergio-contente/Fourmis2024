@@ -314,12 +314,14 @@ if __name__ == "__main__":
             food_counter_local = np.array(ants_local.advance(a_maze, pos_food, \
                 pos_nest, pherom_local, food_counter_local), dtype=np.int64)
             pherom_local.do_evaporation(pos_food)
+            pherom_send = np.array(pherom_local.pheromon.copy())
 
 
             comm_calc.Reduce([food_counter_local, MPI.INT64_T], \
                               [food_counter_colored, MPI.INT64_T], op=MPI.SUM, root=0)
-            comm_calc.Reduce([pherom_local.pheromon, MPI.DOUBLE], \
-                             [pheromon_colored, MPI.DOUBLE], op=MPI.MAX, root=0)
+            comm_calc.Reduce([pherom_send, MPI.DOUBLE], [pheromon_colored, MPI.DOUBLE],\
+                             op=MPI.MAX, root=0)
+            pherom_local.pheromon = comm_calc.bcast(pheromon_colored, root=0)
             comm_calc.Gatherv(ants_local.age, \
                               [age_colored, recv_count, displacements, MPI.INT64_T], root=0)
             comm_calc.Gatherv(ants_local.historic_path, \
@@ -327,11 +329,9 @@ if __name__ == "__main__":
                                 historic_displacements, MPI.INT16_T], root=0)
             comm_calc.Gatherv(ants_local.directions, \
                               [directions_colored, recv_count, displacements, MPI.INT8_T], root=0)
-
             comm.send([seeds_colored, is_loaded_colored, age_colored,\
                         historic_path_colored, directions_colored, \
                             food_counter_colored, pheromon_colored], dest=0)
-        
         else:
             mazeImg = a_maze.display()        
             ants_attributes = comm.recv(source=1)
