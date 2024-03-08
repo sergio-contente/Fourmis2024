@@ -259,7 +259,7 @@ if __name__ == "__main__":
 
     a_maze = maze.Maze(size_laby, 12345)
     
-    while True:
+    for cycle in range(0, 7000):
         if rank == 0:
             deb = time.time()
             mazeImg = a_maze.display()
@@ -293,7 +293,11 @@ if __name__ == "__main__":
 
             end = time.time()
 
-            print(f"FPS : {1./(end-deb):6.2f}, nourriture : {food_counter:7d}", end='\r')
+            output_str = f"FPS : {1./(end-deb):6.2f}, nourriture : {food_counter:7d}"
+
+            # Open the file in append mode ('a') to add to the file without overwriting it
+            with open('results_parallelized_Q1.txt', 'a') as file:
+                file.write(output_str + '\n')  # Write the output string to the file, adding a newline character at the end
 
         if rank == 1:
             food_counter = ants.advance(a_maze.maze, pos_food, pos_nest, pherom, food_counter)

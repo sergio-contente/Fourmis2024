@@ -244,7 +244,7 @@ if __name__ == "__main__":
     
 
     snapshop_taken = False
-    while True:
+    for cycle in range(0, 7000):
         for event in pg.event.get():
             if event.type == pg.QUIT:
                 pg.quit()
@@ -262,5 +262,9 @@ if __name__ == "__main__":
         if food_counter == 1 and not snapshop_taken:
             pg.image.save(screen, "MyFirstFood.png")
             snapshop_taken = True
-        # pg.time.wait(500)
-        print(f"FPS : {1./(end-deb):6.2f}, nourriture : {food_counter:7d}", end='\r')
+
+        output_str = f"FPS : {1./(end-deb):6.2f}, nourriture : {food_counter:7d}"
+
+        # Open the file in append mode ('a') to add to the file without overwriting it
+        with open('results_serial.txt', 'a') as file:
+            file.write(output_str + '\n')  # Write the output string to the file, adding a newline character at the end

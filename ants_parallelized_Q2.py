@@ -247,6 +247,7 @@ if __name__ == "__main__":
     pos_food = size_laby[0]-1, size_laby[1]-1 
     alpha = 0.9
     beta  = 0.99
+    pos_nest = 0, 0
 
     ants_global = Colony(0, nb_ants, pos_nest, max_life)
     pherom = pheromone.Pheromon(size_laby, pos_food, alpha, beta)
@@ -299,7 +300,7 @@ if __name__ == "__main__":
             pheromon_colored = None
 
 
-    while True:
+    for cycle in range(0, 7000):
         deb = time.time()
         if color != 0:
             food_counter_local = np.array(ants_local.advance(a_maze, pos_food, pos_nest, pherom_local, food_counter_local), dtype=np.int64)
