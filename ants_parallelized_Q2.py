@@ -319,7 +319,8 @@ if __name__ == "__main__":
 
             comm_calc.Reduce([food_counter_local, MPI.INT64_T], \
                               [food_counter_colored, MPI.INT64_T], op=MPI.SUM, root=0)
-            comm_calc.Reduce([pherom_send, MPI.DOUBLE], [pheromon_colored, MPI.DOUBLE], op=MPI.MAX, root=0)
+            comm_calc.Reduce([pherom_send, MPI.DOUBLE], [pheromon_colored, MPI.DOUBLE],\
+                             op=MPI.MAX, root=0)
             pherom_local.pheromon = comm_calc.bcast(pheromon_colored, root=0)
             comm_calc.Gatherv(ants_local.age, \
                               [age_colored, recv_count, displacements, MPI.INT64_T], root=0)
