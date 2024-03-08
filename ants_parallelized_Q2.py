@@ -238,8 +238,6 @@ if __name__ == "__main__":
     resolution = size_laby[1]*8, size_laby[0]*8
     if rank==0:
         screen = pg.display.set_mode(resolution)
-        temps_display = 0
-        temps_calcul= 0
         temps_total = 0
     else:
         screen = pg.display.set_mode(resolution, flags=pg.HIDDEN)
@@ -286,7 +284,7 @@ if __name__ == "__main__":
 
         # Local objects
         ants_local = Colony(block_start, block_end, pos_nest, max_life)
-        food_counter_local = np.array(1, dtype=np.int64)
+        food_counter_local = np.array(0, dtype=np.int64)
         pherom_local = pheromone.Pheromon(size_laby, pos_food, alpha, beta)
     
         # Buffers initialization
@@ -313,22 +311,29 @@ if __name__ == "__main__":
         deb = time.time()
         if color != 0:
             # Calculation processes
-            food_counter_local = np.array(ants_local.advance(a_maze, pos_food, pos_nest, pherom_local, food_counter_local), dtype=np.int64)
+            food_counter_local = np.array(ants_local.advance(a_maze, pos_food, \
+                pos_nest, pherom_local, food_counter_local), dtype=np.int64)
             pherom_local.do_evaporation(pos_food)
 
-            comm_calc.Reduce([food_counter_local, MPI.INT64_T], [food_counter_colored, MPI.INT64_T], op=MPI.SUM, root=0)
-            comm_calc.Reduce([pherom_local.pheromon, MPI.DOUBLE], [pheromon_colored, MPI.DOUBLE], op=MPI.MAX, root=0)
-            # comm_calc.Gatherv(ants_local.seeds, [seeds_colored, recv_count, displacements, MPI.INT64_T], root=0)
-            # comm_calc.Gatherv(ants_local.is_loaded, [is_loaded_colored, recv_count, displacements, MPI.INT8_T], root=0)
-            comm_calc.Gatherv(ants_local.age, [age_colored, recv_count, displacements, MPI.INT64_T], root=0)
-            comm_calc.Gatherv(ants_local.historic_path, [historic_path_colored, historic_recvcounts, historic_displacements, MPI.INT16_T], root=0)
-            comm_calc.Gatherv(ants_local.directions, [directions_colored, recv_count, displacements, MPI.INT8_T], root=0)
 
-            comm.send([seeds_colored, is_loaded_colored, age_colored, historic_path_colored, directions_colored, food_counter_colored, pheromon_colored], dest=0)
+            comm_calc.Reduce([food_counter_local, MPI.INT64_T], \
+                              [food_counter_colored, MPI.INT64_T], op=MPI.SUM, root=0)
+            comm_calc.Reduce([pherom_local.pheromon, MPI.DOUBLE], \
+                             [pheromon_colored, MPI.DOUBLE], op=MPI.MAX, root=0)
+            comm_calc.Gatherv(ants_local.age, \
+                              [age_colored, recv_count, displacements, MPI.INT64_T], root=0)
+            comm_calc.Gatherv(ants_local.historic_path, \
+                              [historic_path_colored, historic_recvcounts,\
+                                historic_displacements, MPI.INT16_T], root=0)
+            comm_calc.Gatherv(ants_local.directions, \
+                              [directions_colored, recv_count, displacements, MPI.INT8_T], root=0)
+
+            comm.send([seeds_colored, is_loaded_colored, age_colored,\
+                        historic_path_colored, directions_colored, \
+                            food_counter_colored, pheromon_colored], dest=0)
         
         else:
             mazeImg = a_maze.display()        
-            temps_calcul_start = time.time()
             ants_attributes = comm.recv(source=1)
             # Updating ants
             ants_global.seeds = ants_attributes[0]
@@ -338,8 +343,7 @@ if __name__ == "__main__":
             ants_global.directions = ants_attributes[4]
             food_counter = ants_attributes[5]
             pherom.pheromon = ants_attributes[6]
-            temps_calcul += time.time() - temps_calcul_start
-                 ## Print screen pygame window
+            ## Print screen pygame window
             snapshop_taken = False
             for event in pg.event.get():
                 if event.type == pg.QUIT:
@@ -351,20 +355,17 @@ if __name__ == "__main__":
                 snapshop_taken = True   
             
             # Updating display
-            temps_display_start = time.time()
             pherom.display(screen)
             screen.blit(mazeImg, (0, 0))
             ants_global.display(screen)
             pg.display.update()
-            temps_display += time.time() - temps_display_start
             end = time.time()
             temps_total += end - deb
             print(f"FPS : {1./(end-deb):6.2f}, nourriture : {food_counter[0]:7d}")
 
     if rank==0:
-        #temps_total = temps_calcul + temps_display
-        print(f"Temps display:{temps_display}\nTemps calcules: {temps_calcul}\nTemps total: {temps_total}")
-        output_str = f"Temps display:{temps_display}\nTemps calcules: {temps_calcul}\nTemps total: {temps_total}"
+        print(f"Temps total: {temps_total}")
+        output_str = f"Temps total: {temps_total}"
         # Open the file in append mode ('a') to add to the file without overwriting it
         with open('results_parallelized_Q2.txt', 'w') as file:
             file.write(output_str + '\n')  # Write the output string to the file, adding a newline character at the end

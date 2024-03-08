@@ -233,8 +233,6 @@ if __name__ == "__main__":
 
     resolution = size_laby[1]*8, size_laby[0]*8     
     if rank==0:
-        temps_display = 0
-        temps_calcul= 0
         temps_total = 0
         screen = pg.display.set_mode(resolution)
     else:
@@ -266,7 +264,6 @@ if __name__ == "__main__":
         if rank == 0:
             deb = time.time()
             mazeImg = a_maze.display()
-            temps_calcul_start = time.time()
             Status = MPI.Status()
             ants_attributes, pherom, food_counter = comm.recv(source=1, status=Status)
 
@@ -276,9 +273,7 @@ if __name__ == "__main__":
             ants.age = ants_attributes[2]
             ants.historic_path = ants_attributes[3]
             ants.directions = ants_attributes[4]
-            
-            temps_calcul += time.time() - temps_calcul_start
-            
+                        
             snapshop_taken = False
             for event in pg.event.get():
                 if event.type == pg.QUIT:
@@ -289,12 +284,10 @@ if __name__ == "__main__":
                 pg.image.save(screen, "MyFirstFood.png")
                 snapshop_taken = True   
             
-            temps_display_start = time.time()
             pherom.display(screen)
             screen.blit(mazeImg, (0, 0))
             ants.display(screen)
             pg.display.update()
-            temps_display += time.time() - temps_display_start
             end = time.time()
             temps_total += end - deb
 
@@ -307,9 +300,8 @@ if __name__ == "__main__":
             comm.send(([ants.seeds, ants.is_loaded, ants.age, ants.historic_path, \
                         ants.directions], pherom, food_counter), dest=0)
     if rank==0:
-        #temps_total = temps_calcul + temps_display
-        print(f"Temps display:{temps_display}\nTemps calcules: {temps_calcul}\nTemps total: {temps_total}")
-        output_str = f"Temps display:{temps_display}\nTemps calcules: {temps_calcul}\nTemps total: {temps_total}"
+        print(f"Temps total: {temps_total}")
+        output_str = f"Temps total: {temps_total}"
         # Open the file in append mode ('a') to add to the file without overwriting it
         with open('results_parallelized_Q1.txt', 'w') as file:
             file.write(output_str + '\n')  # Write the output string to the file, adding a newline character at the end
