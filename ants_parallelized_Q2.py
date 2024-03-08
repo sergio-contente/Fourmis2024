@@ -210,7 +210,7 @@ class Colony:
         return food_counter
 
     def display(self, screen):
-        print(len(self.sprites), len(self.historic_path))
+        # print(len(self.sprites), len(self.historic_path))
         [screen.blit(self.sprites[self.directions[i]], (8*self.historic_path[i, self.age[i], 1], 8*self.historic_path[i, self.age[i], 0])) for i in range(self.directions.shape[0])]
 
 
@@ -310,6 +310,7 @@ if __name__ == "__main__":
 
 
     while True:
+        deb = time.time()
         if color != 0:
             food_counter_local = np.array(ants_local.advance(a_maze, pos_food, pos_nest, pherom_local, food_counter_local), dtype=np.int64)
             pherom_local.do_evaporation(pos_food)
@@ -338,7 +339,6 @@ if __name__ == "__main__":
             ants_global.age = ants_attributes[2]
             ants_global.historic_path = ants_attributes[3]
             ants_global.directions = ants_attributes[4]
-            # print(f"direction{ants_attributes[4]}")
             food_counter = ants_attributes[5]
             pherom.pheromon = ants_attributes[6]
 
@@ -358,6 +358,9 @@ if __name__ == "__main__":
             screen.blit(mazeImg, (0, 0))
             ants_global.display(screen)
             pg.display.update()
+            end = time.time()
+
+            print(f"FPS : {1./(end-deb):6.2f}, nourriture : {food_counter[0]:7d}", end='\r')
 
 
         # if rank==0:
@@ -380,13 +383,11 @@ if __name__ == "__main__":
        
         
 
-        #     end = time.time()
 
-            #print(f"FPS : {1./(end-deb):6.2f}, nourriture : {food_counter[0]:7d}", end='\r')
 
             
     # if rank == 0:
-    #     deb = time.time()
+    #     
     #       seeds_glob = np.empty(nb_ants, dtype=np.int64)
     #     is_loaded_glob = np.empty(nb_ants, dtype=np.int8)
     #     age_glob = np.empty(nb_ants, dtype=np.int64)
