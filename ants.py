@@ -6,6 +6,7 @@ import maze
 import pheromone
 import direction as d
 import pygame as pg
+import os
 
 UNLOADED, LOADED = False, True
 
@@ -242,6 +243,10 @@ if __name__ == "__main__":
     mazeImg = a_maze.display()
     food_counter = 0
     
+    temps_display = 0
+    temps_ants = 0
+    temps_pheromon = 0
+    temps_calcul = 0
 
     snapshop_taken = False
     for cycle in range(0, 7000):
@@ -251,20 +256,32 @@ if __name__ == "__main__":
                 exit(0)
 
         deb = time.time()
+        temps_display_start = time.time()
         pherom.display(screen)
         screen.blit(mazeImg, (0, 0))
         ants.display(screen)
         pg.display.update()
+        temps_display += time.time() - temps_display_start
                 
+        temps_ants_start = time.time()
         food_counter = ants.advance(a_maze, pos_food, pos_nest, pherom, food_counter)
+        temps_ants += time.time() - temps_ants_start
+
+        temps_pheromon_start = time.time()
         pherom.do_evaporation(pos_food)
+        temps_pheromon += temps_pheromon_start
         end = time.time()
         if food_counter == 1 and not snapshop_taken:
             pg.image.save(screen, "MyFirstFood.png")
             snapshop_taken = True
 
-        output_str = f"FPS : {1./(end-deb):6.2f}, nourriture : {food_counter:7d}"
+        print(f"FPS : {1./(end-deb):6.2f}, nourriture : {food_counter:7d}")
+        
+    temps_calcul = temps_pheromon + temps_ants
+    temps_total = temps_calcul + temps_display
+    print(f"Temps display:{temps_display}\nTemps calcules: {temps_calcul}\nTemps total: {temps_total}")
+    output_str = f"Temps display:{temps_display}\nTemps calcules: {temps_calcul}\nTemps total: {temps_total}"
+    # Open the file in append mode ('a') to add to the file without overwriting it
+    with open('results_serial.txt', 'w') as file:
+        file.write(output_str + '\n')  # Write the output string to the file, adding a newline character at the end
 
-        # Open the file in append mode ('a') to add to the file without overwriting it
-        with open('results_serial.txt', 'a') as file:
-            file.write(output_str + '\n')  # Write the output string to the file, adding a newline character at the end

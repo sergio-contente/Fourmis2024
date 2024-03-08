@@ -238,6 +238,8 @@ if __name__ == "__main__":
     resolution = size_laby[1]*8, size_laby[0]*8
     if rank==0:
         screen = pg.display.set_mode(resolution)
+        temps_display = 0
+        temps_calcul= 0
     else:
         screen = pg.display.set_mode(resolution, flags=pg.HIDDEN)
     
@@ -306,7 +308,7 @@ if __name__ == "__main__":
             pheromon_colored = None
 
 
-    while True:
+    for cycle in range(0, 7000):
         deb = time.time()
         if color != 0:
             # Calculation processes
@@ -325,7 +327,7 @@ if __name__ == "__main__":
         
         else:
             mazeImg = a_maze.display()        
-        
+            temps_calcul_start = time.time()
             ants_attributes = comm.recv(source=1)
             # Updating ants
             ants_global.seeds = ants_attributes[0]
@@ -335,7 +337,7 @@ if __name__ == "__main__":
             ants_global.directions = ants_attributes[4]
             food_counter = ants_attributes[5]
             pherom.pheromon = ants_attributes[6]
-
+            temps_calcul += time.time() - temps_calcul_start
                  ## Print screen pygame window
             snapshop_taken = False
             for event in pg.event.get():
@@ -343,18 +345,26 @@ if __name__ == "__main__":
                     pg.quit()
                     exit(0)
 
-            if food_counter == 1 and not snapshop_taken:
+            if food_counter[0] == 1 and not snapshop_taken:
                 pg.image.save(screen, "MyFirstFood.png")
                 snapshop_taken = True   
             
             # Updating display
+            temps_display_start = time.time()
             pherom.display(screen)
             screen.blit(mazeImg, (0, 0))
             ants_global.display(screen)
             pg.display.update()
+            temps_display += time.time() - temps_display_start
             end = time.time()
+            print(f"FPS : {1./(end-deb):6.2f}, nourriture : {food_counter[0]:7d}")
 
-            print(f"FPS : {1./(end-deb):6.2f}, nourriture : {food_counter[0]:7d}", end='\r')
-
+    if rank==0:
+        temps_total = temps_calcul + temps_display
+        print(f"Temps display:{temps_display}\nTemps calcules: {temps_calcul}\nTemps total: {temps_total}")
+        output_str = f"Temps display:{temps_display}\nTemps calcules: {temps_calcul}\nTemps total: {temps_total}"
+        # Open the file in append mode ('a') to add to the file without overwriting it
+        with open('results_parallelized_Q2.txt', 'w') as file:
+            file.write(output_str + '\n')  # Write the output string to the file, adding a newline character at the end
 
         

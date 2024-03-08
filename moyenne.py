@@ -1,6 +1,6 @@
 def calcular_media_fps(nome_arquivo):
     # Inicializar uma lista para armazenar os valores de FPS
-    valores_fps = []
+    valores = []
     
     # Tentar abrir o arquivo para leitura
     try:
@@ -12,15 +12,15 @@ def calcular_media_fps(nome_arquivo):
                 for parte in partes:
                     if "FPS" in parte:
                         # Extrair o valor numérico de FPS e convertê-lo para float
-                        fps = float(parte.split(':')[1].strip())
-                        valores_fps.append(fps)
+                        temps = float(parte.split(':')[1].strip())
+                        valores.append(temps)
     
-        # Calcular a média dos valores de FPS, se houver algum
-        if valores_fps:
-            media_fps = sum(valores_fps) / len(valores_fps)
-            print(f"Média de FPS: {media_fps:.2f}")
+        # Calcular a média dos valores de temps, se houver algum
+        if valores:
+            temps_moyen = sum(valores) / len(valores)
+            print(f"Temps_moyen: {temps_moyen:.2f}")
         else:
-            print("Não foram encontrados dados de FPS no arquivo.")
+            print("Não foram encontrados dados de temps no arquivo.")
     
     except FileNotFoundError:
         print(f"Arquivo {nome_arquivo} não encontrado.")
